@@ -58,24 +58,52 @@ public class AutonomousBlueLoadingZone extends BaseAutonomous {
         );
 
         robot.hugger.hug();
-
         waitTime(500);
 
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
                         .strafeLeft(8.00)
+                        .build()
+        );
+        drive.followTrajectorySync(
+                drive.trajectoryBuilder()
                         .setReversed(true)
                         .splineTo(new Pose2d(-50,-29, toRadians(0)))
-                        .addMarker(() -> {
-                            robot.hugger.reset();
-                            return Unit.INSTANCE;
-                        })
+                        .build()
+        );
+
+        robot.hugger.reset();
+        waitTime(500);
+
+        drive.followTrajectorySync(
+                drive.trajectoryBuilder()
                         .setReversed(false)
-                        .splineTo(new Pose2d(0,29, toRadians(0)))
+                        .splineTo(new Pose2d(21,-29, toRadians(0)))
                         .build()
 
         );
 
+        drive.followTrajectorySync(
+                drive.trajectoryBuilder()
+                        .setReversed(false)
+                        .strafeRight(6.25)
+                        .build()
+
+        );
+        robot.hugger.hug();
+        waitTime(500);
+        drive.followTrajectorySync(
+                drive.trajectoryBuilder()
+                        .strafeLeft(7)
+                        .build()
+        );
+        waitTime(200);
+        drive.followTrajectorySync(
+                drive.trajectoryBuilder()
+        .setReversed(true)
+                .splineTo(new Pose2d(-40,-29, toRadians(0)))
+                .build()
+        );
         //robot.intake.intake(1);
         //robot.drive.driveDistance(new Vector(0,0.5), 25, Units.CENTIMETERS);
         //robot.intake.intake(0);
