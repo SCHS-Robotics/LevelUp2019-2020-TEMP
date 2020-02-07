@@ -3,7 +3,9 @@ package org.firstinspires.ftc.teamcode.maincode;
 import com.SCHSRobotics.HAL9001.system.source.BaseRobot.BaseAutonomous;
 import com.SCHSRobotics.HAL9001.system.source.BaseRobot.Robot;
 import com.SCHSRobotics.HAL9001.util.math.Vector;
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
+@Autonomous(name = "AutonomousBlueBuilding", group = "competition")
 public class AutonomousBlueBuildingZone extends BaseAutonomous {
     private Cygnus robot;
     @Override
