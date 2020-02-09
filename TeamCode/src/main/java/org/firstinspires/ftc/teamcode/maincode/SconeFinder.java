@@ -1,331 +1,249 @@
 package org.firstinspires.ftc.teamcode.maincode;
 
-import android.util.Log;
-
 import com.SCHSRobotics.HAL9001.system.source.BaseRobot.Robot;
 import com.SCHSRobotics.HAL9001.system.source.BaseRobot.VisionSubSystem;
 
+import org.opencv.bioinspired.Bioinspired;
+import org.opencv.bioinspired.Retina;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
-import org.opencv.core.MatOfDouble;
-import org.opencv.core.MatOfInt;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
-import org.opencv.core.RotatedRect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
-import org.opencv.imgproc.Moments;
 import org.opencv.ximgproc.Ximgproc;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class SconeFinder extends VisionSubSystem {
+
+    //A detail factor, higher factor = lower detail, lower factor = higher detail
+    private static final double APPROXIMATION_FACTOR = 0.001;
+    private static final double CUBE_APPROX_FACTOR = 0.03;
+    //Minimum skeleton length.
+    private static final double SPINAL_CORD_MIN_LENGTH = 300;
+    //Percentage within which the second skystone black values must be of the first skystone.
+    private static final double SECOND_SKYSTONE_DETECTION_PERCENTAGE = 0.5;
+    //Lab colorspace ranges for yellow.
+    private static final Scalar LOWER_Lab_RANGE = new Scalar(0,105,170), UPPER_Lab_RANGE = new Scalar(255,170,255);
+    //Constant to shift the line up or down by. - is down + is up.
+    private static final int LINE_SHIFT = -23;
+
+    private static final double BADULARITY_THRESH = 0.5;
+
+    private static double lowerSearchBound, upperSearchBound;
+
+    //All the Mats used for processing in the skystone detection algorithm.
+    private Mat cpy = new Mat(),
+            blackMap = new Mat(),
+            lab = new Mat(),
+            thresh = new Mat(),
+            spookyScarySkeleton = new Mat(),
+            theHorizon = new Mat(),
+            mask = new Mat(),
+            gapThresh = new Mat(),
+            fullLineThresh = new Mat(),
+            blackMasked = new Mat(),
+            edges = new Mat(),
+            tempMask = new Mat();
+    //A list of the locations of all detected skystones.
+    private static List<Point> skystones;
+    //A retina model used for lighting correction.
+    private Retina retina;
+
+    /**
+     * The constructor for ScoreFinder.
+     *
+     * @param robot The robot the subsystem is using.
+     */
     public SconeFinder(Robot robot) {
         super(robot);
+        skystones = new ArrayList<>();
     }
 
     @Override
     public Mat onCameraFrame(Mat input) {
 
-        Imgproc.medianBlur(input,input,9);
+        //Local version of skystone list.
+        List<Point> skystones = new ArrayList<>();
 
-        Mat hls = new Mat(), lab = new Mat(), hsv = new Mat(), ycrcb = new Mat();
+        //Converts input mat from rgba to rgb to make it easier to work with
+        Imgproc.cvtColor(input,input,Imgproc.COLOR_RGBA2RGB);
 
+        //Apply retina-based lighting correction.
+        cpy = input.clone();
+        retina.applyFastToneMapping(cpy,input);
+        cpy.release();
+
+        //Starts the conversion of the image into the black colorspace map for skystones behind the scenes.
+        BlackColorspace blackColorspaceCvt = new BlackColorspace(input, blackMap);
+        blackColorspaceCvt.run();
+
+        //Converts input image from the RGB colorspace to the Lab colorspace for color thresholding
         Imgproc.cvtColor(input,lab,Imgproc.COLOR_RGB2Lab);
-        Imgproc.cvtColor(input,hls,Imgproc.COLOR_RGB2HLS_FULL);
-        Imgproc.cvtColor(input,hsv,Imgproc.COLOR_RGB2HSV_FULL);
-        Imgproc.cvtColor(input,ycrcb,Imgproc.COLOR_RGB2YCrCb);
 
-        Mat sChan = new Mat(), sChan2 = new Mat(), aChan = new Mat(), cbChan = new Mat(), bChan = new Mat();
-        Core.extractChannel(hls,sChan,2);
-        Core.extractChannel(hsv,sChan2,1);
-        Core.extractChannel(lab,aChan,1);
-        Core.extractChannel(lab,bChan,2);
-        Core.extractChannel(ycrcb,cbChan,2);
-        Core.bitwise_not(cbChan,cbChan);
-
-        hls.release();
-        hsv.release();
+        //Creates a binary mask based on Lab values. All values within the given colorspace lower and upper bounds will be marked as inliers by the mask.
+        Core.inRange(lab, LOWER_Lab_RANGE, UPPER_Lab_RANGE, thresh);
         lab.release();
-        ycrcb.release();
 
-        Mat yellowMask = new Mat(), redMask = new Mat();
+        //Skeletonizes the binary mask to produce prominent lines
+        Ximgproc.thinning(thresh,spookyScarySkeleton);
 
-        Imgproc.threshold(bChan,yellowMask,150,255,Imgproc.THRESH_BINARY);
-        Imgproc.threshold(aChan,redMask,160,255,Imgproc.THRESH_BINARY_INV);
-        aChan.release();
-
-        sChan.convertTo(sChan,CvType.CV_32F);
-        sChan2.convertTo(sChan2, CvType.CV_32F);
-        bChan.convertTo(bChan,CvType.CV_32F);
-        cbChan.convertTo(cbChan,CvType.CV_32F);
-
-        Core.multiply(sChan,new Scalar(0.25/255.0),sChan);
-        Core.multiply(sChan2,new Scalar(0.25/255.0),sChan2);
-        Core.multiply(bChan,new Scalar(1.0/255.0),bChan);
-        Core.multiply(cbChan,new Scalar(1.0/255.0),cbChan);
-
-        Mat sbChan = new Mat(), ssbChan = new Mat(), ssbcbChan = new Mat();
-
-        Core.add(sChan,bChan,sbChan);
-        sChan.release();
-        bChan.release();
-
-        Core.add(sbChan,sChan2,ssbChan);
-        sbChan.release();
-        sChan2.release();
-
-        Core.add(ssbChan,cbChan,ssbcbChan);
-        ssbChan.release();
-        cbChan.release();
-
-        Core.multiply(ssbcbChan,new Scalar(1.0/1.5),ssbcbChan);
-
-        Core.MinMaxLocResult theMax = Core.minMaxLoc(ssbcbChan);
-        Core.multiply(ssbcbChan,new Scalar(1.0/theMax.maxVal),ssbcbChan);
-        Core.pow(ssbcbChan,3,ssbcbChan);
-        Core.multiply(ssbcbChan,new Scalar(theMax.maxVal),ssbcbChan);
-        Core.multiply(ssbcbChan,new Scalar(255.0),ssbcbChan);
-
-        ssbcbChan.convertTo(ssbcbChan,CvType.CV_8U);
-
-        Core.bitwise_and(ssbcbChan,yellowMask,ssbcbChan);
-        Core.bitwise_and(ssbcbChan,redMask,ssbcbChan);
-
-        yellowMask.release();
-        redMask.release();
-
-        Imgproc.medianBlur(ssbcbChan,ssbcbChan,9);
-
-        /*
-        Mat colorMap = new Mat();
-        Imgproc.applyColorMap(ssbcbChan,colorMap,Imgproc.COLORMAP_JET);
-        ssbcbChan.release();
-
-        Imgproc.cvtColor(colorMap,colorMap,Imgproc.COLOR_BGR2RGB);
-*/
-
-        Mat dist = new Mat(), secondD = new Mat(), thresh = new Mat();
-
-        Imgproc.threshold(ssbcbChan,thresh,140,255,Imgproc.THRESH_BINARY);
-        Imgproc.distanceTransform(thresh,dist,Imgproc.DIST_L1,3);
-
-        Core.normalize(dist,dist,0,255,Core.NORM_MINMAX);
-
-        Imgproc.boxFilter(dist,dist,CvType.CV_8U,new Size(5,5));
-
-        Imgproc.Laplacian(dist,secondD,CvType.CV_16S);
-
-        dist.release();
-
-        Imgproc.GaussianBlur(secondD,secondD,new Size(3,3),5,5);
-
-        Core.multiply(secondD,new Scalar(-1),secondD);
-
-        //Core.normalize(secondD,secondD,0,1,Core.NORM_MINMAX);
-        //Core.pow(secondD,3,secondD);
-        Core.normalize(secondD,secondD,0,255,Core.NORM_MINMAX);
-
-        secondD.convertTo(secondD,CvType.CV_8U);
-
-        Mat closed = new Mat();
-        Imgproc.morphologyEx(secondD,closed,Imgproc.MORPH_CLOSE,Imgproc.getStructuringElement(Imgproc.MORPH_RECT,new Size(3,3)),new Point(-1,-1),3);
-
-        secondD.release();
-
-        Mat spookyScarySkeleton = new Mat();
-        Ximgproc.thinning(closed,spookyScarySkeleton);
-
-        closed.release();
-
-        spookyScarySkeleton.convertTo(spookyScarySkeleton,CvType.CV_8U);
-
+        //Finds the MatOfPoint objects for all the lines in the skeletonized image. Uses chain_approx_none for more data.
         List<MatOfPoint> contours = new ArrayList<>();
-        Imgproc.findContours(spookyScarySkeleton,contours,new Mat(),Imgproc.RETR_EXTERNAL,Imgproc.CHAIN_APPROX_SIMPLE);
+        Imgproc.findContours(spookyScarySkeleton,contours,new Mat(),Imgproc.RETR_LIST,Imgproc.CHAIN_APPROX_NONE);
+        spookyScarySkeleton.release();
 
-        Imgproc.cvtColor(spookyScarySkeleton,spookyScarySkeleton,Imgproc.COLOR_GRAY2BGR);
-
+        //The Spookiest Skeleton is the list of all good points to be considered by the fitLine algorithm.
         MatOfPoint theSpookiestSkeleton = new MatOfPoint();
 
-        for(int i = 0; i < contours.size(); i++) {
+        //Loops through all detected skeletons.
+        for(MatOfPoint skeleton : contours) {
             MatOfPoint2f approx = new MatOfPoint2f();
-            double peri = Imgproc.arcLength(new MatOfPoint2f(contours.get(i).toArray()), false);
-            Imgproc.approxPolyDP(new MatOfPoint2f(contours.get(i).toArray()), approx, 0.01 * peri, false); //0.1 is a detail factor, higher factor = lower detail, lower factor = higher detail
-            MatOfPoint approxMop = new MatOfPoint(approx.toArray());
+            MatOfPoint2f skeleton2f = new MatOfPoint2f(skeleton.toArray());
 
-            //List<MatOfPoint> approxList = new ArrayList<>();
-            //approxList.add(approxMop);
+            //Calculates the length of the skeleton
+            double peri = Imgproc.arcLength(skeleton2f, false);
 
-            if(approx.toList().size() > 15) {
-                //Imgproc.drawContours(spookyScarySkeleton,approxList,0,new Scalar(0,255,0),3);
+            if(peri > SPINAL_CORD_MIN_LENGTH) {
+                //Approximates the detected skeleton.
+                Imgproc.approxPolyDP(skeleton2f, approx, APPROXIMATION_FACTOR * peri, false);
+
+                MatOfPoint approxMop = new MatOfPoint(approx.toArray());
+
+                List<MatOfPoint> approxList = new ArrayList<>();
+                approxList.add(approxMop);
+                Imgproc.drawContours(input,approxList,0,new Scalar(255,0,0),3);
+
+                //Adds the approximated skeleton to the spooky skeleton data Mat.
                 theSpookiestSkeleton.push_back(approxMop);
+                approxMop.release();
             }
-            approxMop.release();
+
             approx.release();
-            contours.get(i).release();
+            skeleton2f.release();
+            skeleton.release();
         }
 
-        Mat theHorizon = new Mat();
-        Point start = new Point(0,0), end = new Point(0,0);
+        //Wait until the black colorspace converter is not longer running
+        waitWhile(blackColorspaceCvt::isAlive);
+
         if(!theSpookiestSkeleton.empty()) {
-            Imgproc.fitLine(theSpookiestSkeleton, theHorizon, Imgproc.DIST_L1, 0, 0.01, 0.01);
 
+            //Fits the data with a line using linear least squares.
+            Imgproc.fitLine(theSpookiestSkeleton, theHorizon, Imgproc.DIST_L2, 0, 0.01, 0.01);
+
+            //Calculates very large start and end points so the line goes all the way across the screen.
             Point vector = new Point(theHorizon.get(0,0)[0],theHorizon.get(1,0)[0]);
-            Point realStart = new Point(theHorizon.get(2,0)[0],theHorizon.get(3,0)[0]);
-            start = new Point(theHorizon.get(2,0)[0]-200*vector.x,theHorizon.get(3,0)[0]-200*vector.y);
-            end = new Point(start.x + 400*vector.x, start.y + 400*vector.y);
+            Point start = new Point(theHorizon.get(2,0)[0]-200*vector.x,theHorizon.get(3,0)[0]-200*vector.y-LINE_SHIFT);
+            Point end = new Point(start.x + 400*vector.x, start.y + 400*vector.y);
 
+            //Draws the line on the input image for debugging.
             Imgproc.line(input,start,end,new Scalar(0,0,255),3);
-        }
-        theSpookiestSkeleton.release();
-//------------------------------------------------------------
-        List<Mat> rgb = new ArrayList<>();
-        Core.split(input,rgb);
 
-        rgb.get(0).convertTo(rgb.get(0),CvType.CV_32F);
-        rgb.get(1).convertTo(rgb.get(1),CvType.CV_32F);
-        rgb.get(2).convertTo(rgb.get(2),CvType.CV_32F);
+            //Creates an empty mask and draws a white line on it, creating a binary image.
+            mask = Mat.zeros(blackMap.size(),CvType.CV_8U);
+            Imgproc.line(mask,start,end,new Scalar(255),5);
 
-        Mat gray = new Mat();
-        Imgproc.cvtColor(input,gray,Imgproc.COLOR_BGR2GRAY);
-        gray.convertTo(gray,CvType.CV_32F);
+            //makes sure the line is confined to the areas of detected skystones.
+            Core.bitwise_and(mask,thresh,fullLineThresh);
 
-        //Core.multiply(bgr.get(0),new Scalar(1.0/255.0),bgr.get(0));
-        //Core.multiply(bgr.get(1),new Scalar(1.0/255.0),bgr.get(1));
-        //Core.multiply(bgr.get(2),new Scalar(1.0/255.0),bgr.get(2));
+            //Find all the gaps in the line.
+            Core.bitwise_xor(fullLineThresh,mask,gapThresh,mask);
+            fullLineThresh.release();
+            mask.release();
 
-        Mat RG = new Mat(), RB = new Mat(), GB = new Mat();
-        Core.subtract(rgb.get(0),rgb.get(1),RG);
-        Core.subtract(rgb.get(0),rgb.get(2),RB);
-        Core.subtract(rgb.get(1),rgb.get(2),GB);
+            List<MatOfPoint> regions = new ArrayList<>();
 
-        rgb.get(0).release();
-        rgb.get(1).release();
-        rgb.get(2).release();
+            //Mask the black colorspace with the gaps in the line.
+            Core.bitwise_and(blackMap,gapThresh,blackMasked);
 
-        Core.pow(RG,2,RG);
-        Core.pow(RB,2,RB);
-        Core.pow(GB,2,GB);
+            Imgproc.morphologyEx(blackMap,blackMap,Imgproc.MORPH_CLOSE,Imgproc.getStructuringElement(Imgproc.MORPH_CROSS,new Size(3,3)));
+            Imgproc.Canny(blackMap,edges,200,255);
+            Imgproc.dilate(edges,edges,Imgproc.getStructuringElement(Imgproc.MORPH_CROSS,new Size(3,3)));
 
-        Mat accum = new Mat();
+            Imgproc.findContours(edges,regions,new Mat(),Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_SIMPLE);
+            edges.release();
 
-        Core.add(RG,RB,accum);
-        RG.release();
-        RB.release();
+            tempMask = Mat.zeros(gapThresh.size(),gapThresh.type());
 
-        Core.add(accum,GB,accum);
-        GB.release();
+            //Finds the contour containing that skystone and blacks it out of the thresh.
+            for(MatOfPoint reg : regions) {
+                MatOfPoint2f approx = new MatOfPoint2f();
+                MatOfPoint2f reg2f = new MatOfPoint2f(reg.toArray());
+                double peri = Imgproc.arcLength(reg2f,true);
+                Imgproc.approxPolyDP(reg2f, approx, CUBE_APPROX_FACTOR * peri, true);
+                reg2f.release();
 
-        Core.sqrt(accum,accum);
-
-        Core.multiply(accum,new Scalar(1.0/255.0),accum);
-        Core.multiply(gray,new Scalar(1.0/255.0),gray);
-
-        Core.add(accum,gray,accum);
-        gray.release();
-        Core.multiply(accum,new Scalar(255.0/2),accum);
-
-        accum.convertTo(accum,CvType.CV_8U);
-        Core.bitwise_not(accum,accum);
-        accum.convertTo(accum,CvType.CV_32F);
-        Core.multiply(accum,new Scalar(1.0/255),accum);
-
-        Core.pow(accum,3,accum);
-
-        Core.multiply(accum,new Scalar(255),accum);
-
-        accum.convertTo(accum,CvType.CV_8U);
-
-        Mat skystoneLines = new Mat();
-        Imgproc.Canny(accum,skystoneLines,0,255);
-        Mat skyStoneLinesClosed = new Mat();
-        Imgproc.morphologyEx(skystoneLines,skyStoneLinesClosed,Imgproc.MORPH_CLOSE,Imgproc.getStructuringElement(Imgproc.MORPH_CROSS, new Size(3,3)),new Point(-1,-1),1);
-        Ximgproc.thinning(skyStoneLinesClosed,skystoneLines);
-
-        skyStoneLinesClosed.release();
-
-        Mat mask = Mat.zeros(accum.size(),CvType.CV_8U);
-
-        Imgproc.line(mask,start,end,new Scalar(255),5);
-        Mat thresh2 = new Mat();
-        Core.bitwise_and(mask,thresh,thresh2);
-        thresh.release();
-        Core.bitwise_xor(thresh2,mask,thresh2,mask);
-
-        mask.release();
-
-        MatOfInt centers = new MatOfInt();
-        MatOfInt vals = new MatOfInt();
-        List<MatOfPoint> regions = new ArrayList<>();
-
-        Mat accumMasked = new Mat();
-        Core.bitwise_and(accum,thresh2,accumMasked);
-
-        Imgproc.findContours(thresh2,regions,new Mat(),Imgproc.RETR_EXTERNAL,Imgproc.CHAIN_APPROX_SIMPLE);
-
-        thresh2.release();
-
-        for(MatOfPoint reg : regions) {
-            MatOfPoint2f approx = new MatOfPoint2f();
-            double peri = Imgproc.arcLength(new MatOfPoint2f(reg.toArray()), true);
-            Imgproc.approxPolyDP(new MatOfPoint2f(reg.toArray()), approx, 0.03 * peri, true);
-            if(approx.toArray().length == 4) {
-                Moments moments = Imgproc.moments(approx);
-                centers.push_back(new MatOfInt((int) Math.round(moments.m10/moments.m00), (int) Math.round(moments.m01/moments.m00)));
                 Rect bbox = Imgproc.boundingRect(approx);
-
-                RotatedRect rotatedRect = Imgproc.minAreaRect(approx);
-
-                Mat d = new Mat(1,1,CvType.CV_8U,new Scalar((int) Math.round(Core.sumElems(accumMasked.submat(bbox)).val[0]/(rotatedRect.size.area()))));
-                vals.push_back(d);
+                if(Imgproc.contourArea(approx)/(bbox.width*bbox.height) > BADULARITY_THRESH) {
+                    Imgproc.drawContours(tempMask,regions,regions.indexOf(reg),new Scalar(255),-1);
+                }
             }
-        }
 
-        Mat valMask = new Mat();
-        //System.out.println(centers.size());
+            Core.bitwise_and(gapThresh,tempMask,gapThresh);
+            tempMask.release();
 
-        MatOfDouble mean = new MatOfDouble();
-        MatOfDouble std = new MatOfDouble();
+            //Find the maximum location of the gaps using the black colorspace as a metric.
+            Core.MinMaxLocResult minMax = Core.minMaxLoc(blackMap,gapThresh);
 
-        Core.meanStdDev(accum,mean,std,mask);
+            skystones.add(minMax.maxLoc);
 
-        accum.release();
+            //Finds the next maximum value point.
+            gapThresh.release();
+/*
+            //If the region is within a certain range of the first maximum value, it is a skystone, and is added to the list.
+            if(minMax2.maxVal >= SECOND_SKYSTONE_DETECTION_PERCENTAGE*minMax.maxVal) {
+                for(MatOfPoint reg : regions) {
+                    MatOfPoint2f reg2f = new MatOfPoint2f(reg.toArray());
+                    int containedInContour = (int) Imgproc.pointPolygonTest(reg2f,minMax2.maxLoc,false);
+                    reg2f.release();
 
-        vals.convertTo(vals,CvType.CV_8U);
-
-        Imgproc.threshold(vals,valMask,mean.get(0,0)[0] + std.get(0,0)[0],255,Imgproc.THRESH_BINARY);
-        Mat valMask2 = new Mat();
-        valMask2.push_back(valMask.t());
-        valMask2.push_back(valMask.t());
-
-        Mat valMask3 = valMask2.t();
-
-        Mat centers2 = centers.reshape(1,valMask.rows());
-        centers2.convertTo(centers2,CvType.CV_8U);
-
-        Mat out = new Mat();
-
-        //Core.multiply(valMask,centers,centers);
-        Core.bitwise_and(valMask3,centers2,out);
-        for(int i = 0; i < centers2.rows(); i++) {
-            Point p = new Point(out.get(i,0)[0],out.get(i,1)[0]);
-            if(p.x != 0 && p.y != 0) {
-                Log.wtf("WAHAM","SHABAM");
-                Imgproc.circle(input, p, 3, new Scalar(0, 255, 0), -1);
+                    Rect bbox = Imgproc.boundingRect(reg);
+                    if((containedInContour == 0 || containedInContour == 1) && (Imgproc.contourArea(reg)/(bbox.width*bbox.height)) >= BADULARITY_THRESH) {
+                        skystones.add(minMax2.maxLoc);
+                        Imgproc.drawContours(input,regions,regions.indexOf(reg),new Scalar(255,255,0),3);
+                        break;
+                    }
+                }
             }
+*/
+            //Draws all the skystones.
+            for(Point p : skystones) {
+                Imgproc.circle(input, p, 5, new Scalar(0, 255, 0), -1);
+            }
+
+            SconeFinder.skystones = skystones;
         }
+        thresh.release();
+        theSpookiestSkeleton.release();
+        theHorizon.release();
+        blackMap.release();
+
+        double redRight = 92, redLeft = 28;
+        Imgproc.line(input,new Point(redLeft,0), new Point(redLeft,500),new Scalar(120,0,0),3);
+        Imgproc.line(input,new Point(redRight,0), new Point(redRight,500),new Scalar(255,0,0),3);
+        double blueRight = 182, blueLeft = 118;
+        Imgproc.line(input,new Point(blueLeft,0), new Point(blueLeft,500),new Scalar(0,0,120),3);
+        Imgproc.line(input,new Point(blueRight,0), new Point(blueRight,500),new Scalar(0,0,255),3);
 
         return input;
     }
 
     @Override
     public void init() {
+        retina = Retina.create(new Size(240, 320),true,Bioinspired.RETINA_COLOR_BAYER);
+        retina.activateMovingContoursProcessing(false);
+        retina.setup();
+        retina.clearBuffers();
 
+        lowerSearchBound = 0;
+        upperSearchBound = 240;
     }
 
     @Override
@@ -335,7 +253,7 @@ public class SconeFinder extends VisionSubSystem {
 
     @Override
     public void start() {
-        startVision();
+
     }
 
     @Override
@@ -345,6 +263,23 @@ public class SconeFinder extends VisionSubSystem {
 
     @Override
     public void stop() {
+        stopVision();
+    }
 
+    /**
+     * Gets a list of all detected skystones. This list is cached.
+     *
+     * @return A list of all detected skystones.
+     */
+    public List<Point> getSkystones() {
+        return skystones;
+    }
+
+    public void setUpperSearchBound(double upperSearchBound) {
+        SconeFinder.upperSearchBound = upperSearchBound;
+    }
+
+    public void setLowerSearchBound(double lowerSearchBound) {
+        SconeFinder.lowerSearchBound = lowerSearchBound;
     }
 }

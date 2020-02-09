@@ -7,4 +7,9 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 @TeleOp(name = "OpenCV Testing", group = "testing")
 public class OpenCVTesting extends BaseTeleop {
     public @MainRobot OpenCVTestRobot robot;
+
+    @Override
+    public void onStart() {
+        robot.detector.startVision();
+    }
 }
