@@ -59,7 +59,7 @@ public class Hugger extends SubSystem {
     }
 
     public void hug() {
-        hugLeft();
+        resetLeft();
         hugRight();
     }
 
@@ -70,7 +70,7 @@ public class Hugger extends SubSystem {
     }
 
     public void reset() {
-        resetLeft();
+        hugLeft();
         resetRight();
     }
 

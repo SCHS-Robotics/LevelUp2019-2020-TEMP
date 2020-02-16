@@ -17,18 +17,19 @@ import org.firstinspires.ftc.teamcode.drive.mecanum.SampleMecanumDriveREVOptimiz
 /**
  * Place the bot with the intake touching the wall and the left wheels on the crease
  */
-@Autonomous(name = "AutonomousBlueBuildingWall", group = "competition")
-public class AutonomousBlueBuildingZone extends BaseAutonomous {
+@Autonomous(name = "AutonomousBlueBuildingWallNeutral", group = "competition")
+public class AutonomousBlueBuildingZoneNeutral extends BaseAutonomous {
     public @MainRobot Cygnus robot;
     public SampleMecanumDriveREVOptimized drive;
     private BeatBox beatBox;
 
     @Override
     public void main() {
+
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                .back(5)
-                .build()
+                        .back(5)
+                        .build()
         );
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
@@ -72,7 +73,7 @@ public class AutonomousBlueBuildingZone extends BaseAutonomous {
         );
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .forward(16)
+                        .back(10.5)
                         .build()
         );
         drive.followTrajectorySync(
@@ -90,7 +91,7 @@ public class AutonomousBlueBuildingZone extends BaseAutonomous {
         robot.mover.resetLatch();
         robot.hugger.hugLeft();
         beatBox = new BeatBox();
-        beatBox.addSong("Spooky", MediaPlayer.create(robot.hardwareMap.appContext, R.raw.spookyskeleboys));
+        beatBox.addSong("Spooky", MediaPlayer.create(robot.hardwareMap.appContext, R.raw.ggthemebest));
         beatBox.baseBoost("Spooky",100);
 
         beatBox.playSong("Spooky");

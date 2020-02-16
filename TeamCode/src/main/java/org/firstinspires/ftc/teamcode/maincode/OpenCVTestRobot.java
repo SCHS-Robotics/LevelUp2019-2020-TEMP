@@ -10,12 +10,12 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 public class OpenCVTestRobot extends Robot {
 
     //public BLUEFoundationDetection detector;
-    public SconeFinder detector;
+    public AccioStones detector;
     public OpenCVTestRobot(OpMode opMode) {
         super(opMode);
         enableViewport(new Button(1, Button.BooleanInputs.noButton));
         startGui(new Button(1, Button.BooleanInputs.noButton));
         //detector = new BLUEFoundationDetection(this);
-        detector = new SconeFinder(this);
+        detector = new AccioStones(this);
     }
 }

@@ -74,7 +74,7 @@ public class FoundationMover extends SubSystem {
 
     public void setLatch(double position) {
         latch.setPosition(position);
-        latch2.setPosition(position);
+        latch2.setPosition(position/2);
     }
 
     public void latch() {
@@ -82,7 +82,7 @@ public class FoundationMover extends SubSystem {
     }
 
     public void resetLatch() {
-        setLatch(0.5);
+        setLatch(1);
     }
 
     public void latchTime(long time) {

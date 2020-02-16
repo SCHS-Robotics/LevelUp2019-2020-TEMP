@@ -24,6 +24,7 @@ public class CapstonePlopper extends SubSystem {
     public CapstonePlopper(Robot robot, String plopperConfig) {
         super(robot);
         plop = robot.hardwareMap.servo.get(plopperConfig);
+        //plop.setDirection(Servo.Direction.REVERSE);
         gamepad = new CustomizableGamepad(robot);
 
         usesConfig = true;
@@ -66,11 +67,11 @@ public class CapstonePlopper extends SubSystem {
     }
 
     public void plop() {
-        setPlop(0.7);
+        setPlop(0);
     }
 
     public void resetPlop() {
-        setPlop(0);
+        setPlop(0.4);
     }
 
     public void plopTime(long time) {

@@ -33,7 +33,7 @@ public class AutonomousBlueLoadingZone extends BaseAutonomous {
 
     private static final double LEFT_DIVIDER = 118, RIGHT_DIVIDER = 182;
     private enum StoneState {
-        LEFT(-4), CENTER(4), RIGHT(12);
+        LEFT(5.5), CENTER(-2.5), RIGHT(-10.5);
 
         public double dX;
         StoneState(double dX) {
@@ -96,14 +96,14 @@ public class AutonomousBlueLoadingZone extends BaseAutonomous {
         if (state.dX < 0) {
             drive.followTrajectorySync(
                     drive.trajectoryBuilder()
-                            .forward(-state.dX)//splineTo(new Pose2d(32.25, 24   , toRadians(90))))
+                            .back(-state.dX)//splineTo(new Pose2d(32.25, 24   , toRadians(90))))
                             .build()
 
             );
         } else {
             drive.followTrajectorySync(
                     drive.trajectoryBuilder()
-                            .back(state.dX)//splineTo(new Pose2d(32.25, 24   , toRadians(90))))
+                            .forward(state.dX)//splineTo(new Pose2d(32.25, 24   , toRadians(90))))
                             .build()
 
 
@@ -112,95 +112,101 @@ public class AutonomousBlueLoadingZone extends BaseAutonomous {
 
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .strafeRight(36.5)//splineTo(new Pose2d(32.25, 24   , toRadians(90))))
+                        .strafeRight(37)//splineTo(new Pose2d(32.25, 24   , toRadians(90))))
                         .build()
 
         );
 
-        robot.hugger.hug();
+        robot.hugger.hugRight();
+        waitTime(400);
+
+        drive.followTrajectorySync(
+                drive.trajectoryBuilder()
+                        .strafeLeft(14)
+                        .build()
+        );
         waitTime(200);
 
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .strafeLeft(13)
+                        .forward(50)
                         .build()
         );
+
+        robot.hugger.resetRight();
         waitTime(200);
 
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .setReversed(true)
-                        .splineTo(new Pose2d(-50,-24, toRadians(0)))
-                        .build()
-        );
-
-        robot.hugger.reset();
-        waitTime(200);
-
-        drive.followTrajectorySync(
-                drive.trajectoryBuilder()
-                        .splineTo(new Pose2d(23+state.dX,-30, toRadians(0)))
+                        .back(74)
                         .build()
 
         );
 
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .strafeRight(3)
+                        .strafeRight(15.5)
                         .build()
 
         );
 
-        robot.hugger.hug();
+        robot.hugger.hugRight();
         waitTime(500);
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .strafeLeft(13.5)
+                        .strafeLeft(17.5)
                         .build()
         );
 
         waitTime(200);
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                .setReversed(true)
-                .splineTo(new Pose2d(-50,-23.5, toRadians(0)))
+                .forward(64-state.dX)
                 .build()
         );
-        robot.hugger.reset();
-        waitTime(200);
-
-        drive.followTrajectorySync(
-                drive.trajectoryBuilder()
-                        .splineTo(new Pose2d(10+state.dX,-30, toRadians(0)))
-                        .build()
-
-        );
-        drive.followTrajectorySync(
-                drive.trajectoryBuilder()
-                        .strafeRight(3)
-                        .build()
-
-        );
-        robot.hugger.hug();
+        robot.hugger.resetRight();
 
         waitTime(200);
 
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .strafeLeft(13.5)
+                        .back(47.5-state.dX)
+                        .build()
+
+        );
+        drive.followTrajectorySync(
+                drive.trajectoryBuilder()
+                        .strafeRight(22)
+                        .build()
+
+        );
+        robot.hugger.hugRight();
+
+        waitTime(200);
+
+        drive.followTrajectorySync(
+                drive.trajectoryBuilder()
+                        .strafeLeft(28)
                         .build()
         );
-
+        //drive.turn(toRadians(15));
         waitTime(200);
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .setReversed(true)
-                        .splineTo(new Pose2d(-42,-20, toRadians(0)))
+                        .forward(58)
                         .build()
         );
+        drive.followTrajectorySync(
+                drive.trajectoryBuilder()
+                        .strafeRight(8)
+                        .build()
+        );
+        robot.hugger.resetRight();
 
-        robot.hugger.reset();
-
+        waitTime(200);
+        robot.drive.drive(new Vector(0,-0.5));
+        waitUntil(() -> robot.lineDetector.isRedDetected() || robot.lineDetector.isBlueDetected());
+        robot.drive.stopAllMotors();
         //robot.intake.intake(1);
         //robot.drive.driveDistance(new Vector(0,0.5), 25, Units.CENTIMETERS);
         //robot.intake.intake(0);
@@ -211,12 +217,12 @@ public class AutonomousBlueLoadingZone extends BaseAutonomous {
     @Override
     protected void onInit() {
         drive = new SampleMecanumDriveREVOptimized(robot.hardwareMap);
-
+        robot.hugger.hugLeft();
         beatBox = new BeatBox();
-        beatBox.addSong("Spooky", MediaPlayer.create(robot.hardwareMap.appContext,R.raw.wenumberone));
+        beatBox.addSong("Spooky", MediaPlayer.create(robot.hardwareMap.appContext,R.raw.ggthemebest));
         beatBox.baseBoost("Spooky",100);
 
-        //beatBox.playSong("Spooky");
+        beatBox.playSong("Spooky");
 
         robot.skystoneDetector.startVision();
     }

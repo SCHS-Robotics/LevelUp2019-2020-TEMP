@@ -33,7 +33,7 @@ public class AutonomousRedLoadingZone extends BaseAutonomous {
 
     private static final double LEFT_DIVIDER = 28, RIGHT_DIVIDER = 92;
     private enum StoneState {
-        LEFT(16), CENTER(8), RIGHT(0);
+        LEFT(-10), CENTER(-2), RIGHT(6);
 
         public double dX;
         StoneState(double dX) {
@@ -93,104 +93,103 @@ public class AutonomousRedLoadingZone extends BaseAutonomous {
 
         telemetry.addData("state", state.name());
         telemetry.update();
+        if (state.dX > 0) {
+            drive.followTrajectorySync(
+                    drive.trajectoryBuilder()
+                            .forward(state.dX)//splineTo(new Pose2d(32.25, 24   , toRadians(90))))
+                            .build()
 
+            );
+        } else {
+            drive.followTrajectorySync(
+                    drive.trajectoryBuilder()
+                            .back(-state.dX)//splineTo(new Pose2d(32.25, 24   , toRadians(90))))
+                            .build()
+
+            );
+        }
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .forward(state.dX)//splineTo(new Pose2d(32.25, 24   , toRadians(90))))
+                        .strafeLeft(36.5)//splineTo(new Pose2d(32.25, 24   , toRadians(90))))
                         .build()
 
         );
 
+        robot.hugger.resetLeft();
+        waitTime(500);
+
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .strafeRight(36.5)//splineTo(new Pose2d(32.25, 24   , toRadians(90))))
+                        .strafeRight(13)
                         .build()
+        );
+        waitTime(250);
 
+        drive.followTrajectorySync(
+                drive.trajectoryBuilder()
+
+                        .forward(50)
+                        .build()
         );
 
-        robot.hugger.hugRight();
+        robot.hugger.hugLeft();
         waitTime(200);
 
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .strafeLeft(13)
-                        .build()
-        );
-        waitTime(200);
-
-        drive.followTrajectorySync(
-                drive.trajectoryBuilder()
-                        .setReversed(true)
-                        .splineTo(new Pose2d(-50,-24, toRadians(0)))
-                        .build()
-        );
-
-        robot.hugger.resetRight();
-        waitTime(200);
-
-        drive.followTrajectorySync(
-                drive.trajectoryBuilder()
-                        .splineTo(new Pose2d(23+state.dX,-30, toRadians(0)))
+                        .back(74)
                         .build()
 
         );
 
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .strafeRight(3)
+                        .strafeLeft(15.5)
                         .build()
 
         );
 
-        robot.hugger.hugRight();
+        robot.hugger.resetLeft();
         waitTime(500);
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .strafeLeft(13.5)
+                        .strafeRight(14.5)
                         .build()
-        );
-
-        waitTime(200);
-        drive.followTrajectorySync(
-                drive.trajectoryBuilder()
-                        .setReversed(true)
-                        .splineTo(new Pose2d(-50,-23.5, toRadians(0)))
-                        .build()
-        );
-        robot.hugger.resetRight();
-        waitTime(200);
-
-        drive.followTrajectorySync(
-                drive.trajectoryBuilder()
-                        .splineTo(new Pose2d(10+state.dX,-30, toRadians(0)))
-                        .build()
-
         );
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .strafeRight(3)
+                        .forward(60)
                         .build()
-
         );
-        robot.hugger.hugRight();
-
-        waitTime(200);
-
+        robot.hugger.hugLeft();
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .strafeLeft(13.5)
+                        .back(52)
                         .build()
         );
-
-        waitTime(200);
         drive.followTrajectorySync(
                 drive.trajectoryBuilder()
-                        .setReversed(true)
-                        .splineTo(new Pose2d(-42,-20, toRadians(0)))
+                        .strafeLeft(18.5)
                         .build()
         );
-
-        robot.hugger.resetRight();
+        robot.hugger.resetLeft();
+        waitTime(500);
+        drive.followTrajectorySync(
+                drive.trajectoryBuilder()
+                        .strafeRight(15.5)
+                        .build()
+        );
+        drive.followTrajectorySync(
+                drive.trajectoryBuilder()
+                        .forward(55-state.dX)
+                        .build()
+        );
+        robot.hugger.hugLeft();
+        drive.followTrajectorySync(
+                drive.trajectoryBuilder()
+                        .back(12)
+                        .build()
+        );
 
         //robot.intake.intake(1);
         //robot.drive.driveDistance(new Vector(0,0.5), 25, Units.CENTIMETERS);
@@ -202,9 +201,11 @@ public class AutonomousRedLoadingZone extends BaseAutonomous {
     @Override
     protected void onInit() {
         drive = new SampleMecanumDriveREVOptimized(robot.hardwareMap);
-
+        robot.hugger.resetRight();
+        robot.hugger.hugLeft();
+        robot.plopper.resetPlop();
         beatBox = new BeatBox();
-        beatBox.addSong("Spooky", MediaPlayer.create(robot.hardwareMap.appContext,R.raw.spookyskeleboys));
+        beatBox.addSong("Spooky", MediaPlayer.create(robot.hardwareMap.appContext,R.raw.ggthemebest));
         beatBox.baseBoost("Spooky",100);
 
         beatBox.playSong("Spooky");

@@ -25,18 +25,17 @@ public class SconeFinder extends VisionSubSystem {
     //A detail factor, higher factor = lower detail, lower factor = higher detail
     private static final double APPROXIMATION_FACTOR = 0.001;
     private static final double CUBE_APPROX_FACTOR = 0.03;
+    private static final double EXCLUDE_Y = 160;
     //Minimum skeleton length.
     private static final double SPINAL_CORD_MIN_LENGTH = 300;
-    //Percentage within which the second skystone black values must be of the first skystone.
-    private static final double SECOND_SKYSTONE_DETECTION_PERCENTAGE = 0.5;
     //Lab colorspace ranges for yellow.
     private static final Scalar LOWER_Lab_RANGE = new Scalar(0,105,170), UPPER_Lab_RANGE = new Scalar(255,170,255);
     //Constant to shift the line up or down by. - is down + is up.
-    private static final int LINE_SHIFT = -23;
+    private static final int LINE_SHIFT = -18;
 
     private static final double BADULARITY_THRESH = 0.5;
 
-    private static double lowerSearchBound, upperSearchBound;
+    private KalmanTracker kf;
 
     //All the Mats used for processing in the skystone detection algorithm.
     private Mat cpy = new Mat(),
@@ -93,6 +92,11 @@ public class SconeFinder extends VisionSubSystem {
 
         //Skeletonizes the binary mask to produce prominent lines
         Ximgproc.thinning(thresh,spookyScarySkeleton);
+
+        Mat exclusionZone = Mat.zeros(spookyScarySkeleton.size(), spookyScarySkeleton.type());
+        Imgproc.rectangle(input,new Point(0,0), new Point(1000000,EXCLUDE_Y),new Scalar(255),-1);
+        Core.bitwise_not(exclusionZone,exclusionZone);
+        Core.bitwise_and(spookyScarySkeleton,exclusionZone,spookyScarySkeleton);
 
         //Finds the MatOfPoint objects for all the lines in the skeletonized image. Uses chain_approx_none for more data.
         List<MatOfPoint> contours = new ArrayList<>();
@@ -160,19 +164,17 @@ public class SconeFinder extends VisionSubSystem {
 
             List<MatOfPoint> regions = new ArrayList<>();
 
-            //Mask the black colorspace with the gaps in the line.
-            Core.bitwise_and(blackMap,gapThresh,blackMasked);
-
+            //Dilates blackMap and finds edges
             Imgproc.morphologyEx(blackMap,blackMap,Imgproc.MORPH_CLOSE,Imgproc.getStructuringElement(Imgproc.MORPH_CROSS,new Size(3,3)));
             Imgproc.Canny(blackMap,edges,200,255);
             Imgproc.dilate(edges,edges,Imgproc.getStructuringElement(Imgproc.MORPH_CROSS,new Size(3,3)));
 
+            //Finds all contours in the edges
             Imgproc.findContours(edges,regions,new Mat(),Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_SIMPLE);
             edges.release();
 
+            //Finds all rectangular contours and adds them to the temp mask
             tempMask = Mat.zeros(gapThresh.size(),gapThresh.type());
-
-            //Finds the contour containing that skystone and blacks it out of the thresh.
             for(MatOfPoint reg : regions) {
                 MatOfPoint2f approx = new MatOfPoint2f();
                 MatOfPoint2f reg2f = new MatOfPoint2f(reg.toArray());
@@ -186,37 +188,20 @@ public class SconeFinder extends VisionSubSystem {
                 }
             }
 
+            //Makes sure that only rectangle regions are classified as real gaps in the line
             Core.bitwise_and(gapThresh,tempMask,gapThresh);
             tempMask.release();
 
-            //Find the maximum location of the gaps using the black colorspace as a metric.
+            //Find the maximum location of the gaps using the black colorspace as a metric and adds it to the skystones list.
             Core.MinMaxLocResult minMax = Core.minMaxLoc(blackMap,gapThresh);
-
-            skystones.add(minMax.maxLoc);
-
-            //Finds the next maximum value point.
+            //Applies the kalman filter.
+            kf.update(minMax.maxLoc, true);
+            Point prediction = kf.getPrediction();
+            skystones.add(prediction);
             gapThresh.release();
-/*
-            //If the region is within a certain range of the first maximum value, it is a skystone, and is added to the list.
-            if(minMax2.maxVal >= SECOND_SKYSTONE_DETECTION_PERCENTAGE*minMax.maxVal) {
-                for(MatOfPoint reg : regions) {
-                    MatOfPoint2f reg2f = new MatOfPoint2f(reg.toArray());
-                    int containedInContour = (int) Imgproc.pointPolygonTest(reg2f,minMax2.maxLoc,false);
-                    reg2f.release();
 
-                    Rect bbox = Imgproc.boundingRect(reg);
-                    if((containedInContour == 0 || containedInContour == 1) && (Imgproc.contourArea(reg)/(bbox.width*bbox.height)) >= BADULARITY_THRESH) {
-                        skystones.add(minMax2.maxLoc);
-                        Imgproc.drawContours(input,regions,regions.indexOf(reg),new Scalar(255,255,0),3);
-                        break;
-                    }
-                }
-            }
-*/
-            //Draws all the skystones.
-            for(Point p : skystones) {
-                Imgproc.circle(input, p, 5, new Scalar(0, 255, 0), -1);
-            }
+            //Draws the detected skystone.
+            Imgproc.circle(input, prediction, 5, new Scalar(0, 255, 0), -1);
 
             SconeFinder.skystones = skystones;
         }
@@ -225,7 +210,7 @@ public class SconeFinder extends VisionSubSystem {
         theHorizon.release();
         blackMap.release();
 
-        double redRight = 92, redLeft = 28;
+        double redRight = 112, redLeft = 48;
         Imgproc.line(input,new Point(redLeft,0), new Point(redLeft,500),new Scalar(120,0,0),3);
         Imgproc.line(input,new Point(redRight,0), new Point(redRight,500),new Scalar(255,0,0),3);
         double blueRight = 182, blueLeft = 118;
@@ -242,8 +227,7 @@ public class SconeFinder extends VisionSubSystem {
         retina.setup();
         retina.clearBuffers();
 
-        lowerSearchBound = 0;
-        upperSearchBound = 240;
+        kf = new KalmanTracker(new Point());
     }
 
     @Override
@@ -273,13 +257,5 @@ public class SconeFinder extends VisionSubSystem {
      */
     public List<Point> getSkystones() {
         return skystones;
-    }
-
-    public void setUpperSearchBound(double upperSearchBound) {
-        SconeFinder.upperSearchBound = upperSearchBound;
-    }
-
-    public void setLowerSearchBound(double lowerSearchBound) {
-        SconeFinder.lowerSearchBound = lowerSearchBound;
     }
 }

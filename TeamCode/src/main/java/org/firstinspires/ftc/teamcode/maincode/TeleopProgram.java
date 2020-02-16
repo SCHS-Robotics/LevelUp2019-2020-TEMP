@@ -25,10 +25,12 @@ public class TeleopProgram extends BaseTeleop {
     private int songNum;
     private String currentSong;
 
-    private final static int NUMBER_OF_SONGS = 16;
+    private final static int NUMBER_OF_SONGS = 15;
 
     @Override
     protected void onInit() {
+        robot.hugger.hugLeft();
+
         gamepad = new CustomizableGamepad(robot);
         gamepad.addButton(SONG_BUTTON,new Button(1, Button.BooleanInputs.x));
 
@@ -42,7 +44,7 @@ public class TeleopProgram extends BaseTeleop {
         beatBox.addSong("Dual of Fates",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.dualoffates));
         beatBox.addSong("Ra Ra Rasputin",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.rararasputin));
         beatBox.addSong("Gaston",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.gastondos));
-        beatBox.addSong("Giorno's Theme",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.ggtheme));
+        beatBox.addSong("Giorno's Theme",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.ggthemebest));
         beatBox.addSong("Inferno - FIREFORCE OP",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.inferno));
         beatBox.addSong("Istanbul Not Constantinople",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.istanbul));
         beatBox.addSong("Still Alive",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.stillalive));
@@ -51,7 +53,6 @@ public class TeleopProgram extends BaseTeleop {
         beatBox.addSong("Still Alive (Swing Version)",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.stillaliveswing));
         beatBox.addSong("Space Mountain Theme",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.spacemountain));
         beatBox.addSong("Gas Gas Gas",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.gasgasgas));
-        beatBox.addSong("SPAAACE",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.space));
         beatBox.addSong("Top 10 Numbers",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.toptennumbers));
         beatBox.addSong("Deja Vu",MediaPlayer.create(robot.hardwareMap.appContext, R.raw.dejavudos));
 
@@ -104,12 +105,9 @@ public class TeleopProgram extends BaseTeleop {
                     songToPlay = "Gas Gas Gas";
                     break;
                 case 13:
-                    songToPlay = "SPAACE";
-                    break;
-                case 14:
                     songToPlay = "Top 10 Numbers";
                     break;
-                case 15:
+                case 14:
                     songToPlay = "Deja Vu";
                     break;
             }

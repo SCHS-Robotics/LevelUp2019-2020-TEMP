@@ -91,10 +91,10 @@ public class Intake extends SubSystem {
 
     @Override
     public void handle() {
-        boolean intake = gamepad.getBooleanInput(INTAKE);
-        boolean outtake = gamepad.getBooleanInput(OUTTAKE);
+        boolean intakeBool = gamepad.getBooleanInput(INTAKE);
+        boolean outtakeBool = gamepad.getBooleanInput(OUTTAKE);
 
-        intake(intake ? intakePower : outtake ? -intakePower : 0);
+        intake(intakeBool ? intakePower : outtakeBool ? -intakePower : 0);
     }
 
     @Override
